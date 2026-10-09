@@ -1045,7 +1045,7 @@ build_tokio_fixtures() {
     # thousand tasks, which bound what listing them costs, and a task list
     # the program damages, whose reading the build changes nothing of.
     local -a fixtures=(std-async panics workers server drivers steps cancel shapes values
-        runtimes blocking migrate deadlock)
+        runtimes blocking migrate deadlock pool)
     variant o0 dev "" "" "${fixtures[@]}" scale corrupt
     variant o3 release "" "" "${fixtures[@]}"
     # Every fixture again with the older tokio release, which tests read

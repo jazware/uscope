@@ -1062,9 +1062,30 @@ pub fn task_function(task: &TaskSnapshot, trace: &Backtrace) -> Option<String> {
     )
 }
 
-/// Where a task is: the code the program wrote that it runs, or the
-/// function a task of only the runtime's code began in, or why its frames
-/// are unknown.
+/// The future a suspended task waits on when no async function holds it,
+/// as a library's connection written by hand is spawned: named as its
+/// frame is, with long argument lists elided.
+fn awaited_alone(
+    trace: &Backtrace,
+    images: &BTreeMap<ModuleId, Arc<ModuleImage>>,
+) -> Option<String> {
+    if trace
+        .frames
+        .iter()
+        .any(|frame| matches!(frame.kind, uscope::FrameKind::Async { .. }))
+    {
+        return None;
+    }
+    trace
+        .frames
+        .iter()
+        .find(|frame| matches!(frame.kind, uscope::FrameKind::Awaited { .. }))
+        .map(|frame| elide_arguments(&frame_code(frame, images)))
+}
+
+/// Where a task is: the code the program wrote that it runs, the function
+/// a task of only the runtime's code began in, the future a task with no
+/// async function waits on, or why its frames are unknown.
 pub fn task_place(
     task: &TaskSnapshot,
     trace: &uscope::Result<Backtrace>,
@@ -1074,10 +1095,12 @@ pub fn task_place(
     match trace {
         Ok(trace) => trace.user_frame().map_or_else(
             || {
-                task_function(task, trace).map_or_else(
-                    || renderer.paint(Role::Metadata, "<runtime code>").to_string(),
-                    |entry| renderer.paint(Role::Name, entry).to_string(),
-                )
+                task_function(task, trace)
+                    .or_else(|| awaited_alone(trace, images))
+                    .map_or_else(
+                        || renderer.paint(Role::Metadata, "<runtime code>").to_string(),
+                        |entry| renderer.paint(Role::Name, entry).to_string(),
+                    )
             },
             |frame| {
                 let name = renderer.paint(

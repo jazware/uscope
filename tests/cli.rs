@@ -774,6 +774,40 @@ fn tokio_tasks_are_listed_by_number() {
     }
 }
 
+/// A task that holds no async function, as a pool's connection written by
+/// hand, is listed by the future it waits on, past the trait object and
+/// the futures crate's `map` and `map_err` it was spawned through, instead
+/// of as `<runtime code>`. A task of an async function still is that.
+#[test]
+fn tokio_tasks_of_no_async_function_are_listed_by_their_future() {
+    let stdout = batch(
+        &["build/test-programs/tokio-pool-o0"],
+        &["break truth_reached", "run", "tasks"],
+    );
+    let places = stdout
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("  [")
+                .or_else(|| line.strip_prefix("* ["))?
+                .split_once("] ")
+        })
+        .map(|(_, rest)| rest)
+        .collect::<Vec<_>>();
+    assert_eq!(places.len(), 3, "{stdout}");
+    let written = places
+        .iter()
+        .filter(|place| place.starts_with("awaiting pool::Connection — suspended"))
+        .count();
+    let functions = places
+        .iter()
+        .filter(|place| {
+            place.starts_with("connection at tests/fixtures/rust/tokio/pool/src/main.rs:")
+        })
+        .count();
+    assert_eq!((written, functions), (2, 1), "{stdout}");
+    assert!(!stdout.contains("<runtime code>"), "{stdout}");
+}
+
 /// `task` alone shows the selected task and where it was created: the
 /// call that created a goroutine, and the line tokio recorded spawning a
 /// task from, in a build with `tokio_unstable`.

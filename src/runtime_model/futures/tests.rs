@@ -40,6 +40,8 @@ const OPTION: u32 = 19;
 const SOME: u32 = 20;
 const NONE: u32 = 21;
 const TAG: u32 = 22;
+const MAP_ERR: u32 = 23;
+const INTO_FUTURE: u32 = 24;
 
 /// Where the awaited future lies in each coroutine.
 const AWAITEE: u64 = 8;
@@ -267,6 +269,22 @@ impl Types {
         ]
         .into_iter()
         .chain(option(INNER))
+        // The futures crate's `map_err`, its future in an `IntoFuture`, as
+        // hyper-util spawns its connections (here without the `Map`).
+        .chain([
+            named(
+                MAP_ERR,
+                &["futures_util", "future", "try_future"],
+                "MapErr",
+                vec![member("inner", INTO_FUTURE, 0)],
+            ),
+            named(
+                INTO_FUTURE,
+                &["futures_util", "future", "try_future", "into_future"],
+                "IntoFuture",
+                vec![member("future", INNER, 0)],
+            ),
+        ])
         .collect();
         let outer = coroutine(vec![
             state(0, CoroutineStateKind::Unresumed, 10, None),
@@ -281,6 +299,7 @@ impl Types {
             state(10, suspended(6), 18, Some(INSTRUMENTED)),
             state(11, suspended(7), 18, Some(LOOKALIKE)),
             state(12, suspended(8), 18, Some(TASK_LOCAL)),
+            state(13, suspended(9), 18, Some(MAP_ERR)),
         ]);
         let inner = coroutine(vec![
             state(0, CoroutineStateKind::Unresumed, 20, None),
@@ -536,6 +555,21 @@ fn a_chain_reaches_its_leaf_through_every_kind_of_future() {
         matches!(&dropped.end, ChainEnd::Broken(reason) if reason.contains("it is None")),
         "{dropped:?}"
     );
+
+    // The futures crate's `map_err` is passed through, and its
+    // `IntoFuture`, to the future within.
+    memory.byte(outer, 13);
+    memory.byte(outer + AWAITEE, 3);
+    let mapped = walk_from(&memory, outer, OUTER);
+    assert_eq!(
+        mapped.frames,
+        [
+            leaf(outer + 2 * AWAITEE, SLEEP),
+            coroutine_frame(outer + AWAITEE, INNER, 3, suspended(0), 21),
+            coroutine_frame(outer, OUTER, 13, suspended(9), 18),
+        ]
+    );
+    assert_eq!(mapped.end, ChainEnd::Leaf);
 
     // A trait object of a vtable no type names ends the chain, saying so.
     memory.byte(outer, 5);

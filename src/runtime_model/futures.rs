@@ -36,10 +36,12 @@ const MAX_WRAPPERS: usize = 16;
 /// task tokio spawns, keeping its future in std's `ManuallyDrop` (which
 /// recent releases of Rust lay out around a `MaybeDangling`), and tokio's
 /// `InstrumentedAsyncOp` wraps what its locks, semaphores, and barriers
-/// are awaited through. Then tokio's task-local scopes, and the futures
-/// crate's `map` and `catch_unwind`, which programs spawn their futures
-/// through.
-const HOLDERS: [(&[&str], &str, &[&str]); 9] = [
+/// are awaited through. Then tokio's task-local scopes, the futures crate's
+/// `map` and `catch_unwind`, which programs spawn their futures through,
+/// and its `map_err`, `map_ok`, `err_into` and `ok_into`, which hyper-util
+/// spawns each pooled connection through, all of them a `Map` around the
+/// future in an `IntoFuture`.
+const HOLDERS: [(&[&str], &str, &[&str]); 14] = [
     (&["tracing", "instrument"], "Instrumented", &["inner"]),
     (&["tracing", "instrument"], "WithDispatch", &["inner"]),
     (
@@ -71,6 +73,31 @@ const HOLDERS: [(&[&str], &str, &[&str]); 9] = [
     (
         &["futures_util", "future", "future", "catch_unwind"],
         "CatchUnwind",
+        &["future"],
+    ),
+    (
+        &["futures_util", "future", "try_future"],
+        "MapErr",
+        &["inner"],
+    ),
+    (
+        &["futures_util", "future", "try_future"],
+        "MapOk",
+        &["inner"],
+    ),
+    (
+        &["futures_util", "future", "try_future"],
+        "ErrInto",
+        &["inner"],
+    ),
+    (
+        &["futures_util", "future", "try_future"],
+        "OkInto",
+        &["inner"],
+    ),
+    (
+        &["futures_util", "future", "try_future", "into_future"],
+        "IntoFuture",
         &["future"],
     ),
 ];

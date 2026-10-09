@@ -144,7 +144,9 @@ An async frame has no registers; its variables are the members its state
 keeps, read relative to the future, and `$future` is the future. A running
 task's frames are its thread's, down to tokio's `Dispatch` frame, which hands
 the thread to the task. A thread blocking in `block_on` shows the future it
-drives just before the frame that drives it.
+drives just before the frame that drives it. A task whose chain holds no
+async function, as a hyper connection's future is written by hand, is
+listed by the future it waits on, as `awaiting hyper::…::Connection<…>`.
 
 Backtraces fold the runtime's frames, Go's too: a run of runtime frames is
 one line, and `bt -r` shows them all. Frame numbers count every frame.
@@ -240,6 +242,7 @@ Checkpoints wait until nothing moves, by the runtime's park counts and
 | `shapes`, `values` | Every shape of await chain; every viewed type in every state, sockets and their futures among them |
 | `server`, `scale` | The attach and soak target, a listener and a task per connection; a hundred thousand tasks |
 | `blocking`, `migrate`, `deadlock`, `corrupt` | A blocking pool's queue; a task resuming elsewhere during `block_in_place`; a mutex cycle; a list the program damages |
+| `pool` | Connections spawned as hyper-util's pool spawns them, through `map_err`, `map` and a boxed trait object: two futures written by hand and one async function |
 
 `tests/tokio/invariants.rs` checks every stop of most scenarios: no task
 listed twice, each running task on the thread whose activity names it, each

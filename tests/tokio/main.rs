@@ -15,6 +15,7 @@ mod drivers;
 mod invariants;
 mod migrate;
 mod panics;
+mod pool;
 mod resume_points;
 mod runtimes;
 mod scale;
